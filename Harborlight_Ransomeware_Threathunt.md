@@ -1,6 +1,4 @@
-# THREAT HUNT REPORT
-
----
+# THREAT HUNT REPORT - Harborlight Dental - Akira Ransomware Compromise
 
 # 1. FRONT MATTER AND DOCUMENT CONTROL
 
@@ -8,7 +6,7 @@
 |---|---|
 | Report title | Harborlight Dental - Akira Ransomware Compromise |
 | Hunt ID | HD-HUNT-2026-001 |
-| Author | Casey Scott Ledbetter |
+| Author | Casey Ledbetter |
 | Version | 1.0 |
 | Date issued (UTC) | 2026-10-06 |
 | Classification / handling | TLP:RED / Strictly Confidential |
@@ -18,7 +16,7 @@
 
 | Version | Date (UTC) | Author | Change |
 |---|---|---|---|
-| 1.0 | 2026-10-06 | Casey Scott Ledbetter | Initial report and handover to IR |
+| 1.0 | 2026-10-06 | Casey Ledbetter | Initial report and handover to IR |
 
 # 2. EXECUTIVE SUMMARY
 
@@ -34,7 +32,7 @@ I tracked the attacker gaining initial access via BACKOFFICE-PC1, bypassing loca
 | Trigger | Anomalous process execution alerts on BACKOFFICE-PC1 |
 | Period hunted (UTC) | 2026-02-03 00:00:00 to 2026-02-04 23:59:59 |
 | Estate in scope | BACKOFFICE-PC1, HL-FS01, ADDC01 |
-| Analyst(s) | Casey Scott Ledbetter |
+| Analyst(s) | Casey Ledbetter |
 | Time spent | 4 hours |
 
 # 4. HYPOTHESIS AND ABLE SCOPE
@@ -80,7 +78,8 @@ HarborlightDental_CL
 | order by EventTime asc
 ```
 
-[📸 SCREENSHOT: Execute the ms-settings / reg add query above. Capture the results showing the UAC bypass execution.]
+<img width="1235" height="150" alt="image" src="https://github.com/user-attachments/assets/1d8aa8a9-4b79-48e8-b233-b401ccd87bc4" />
+
 
 **Returned:** Hits for registry modifications targeting ms-settings.
 **Read:** I concluded the attacker utilized known UAC bypass techniques to execute payloads with High Integrity.
@@ -98,7 +97,7 @@ HarborlightDental_CL
 | project EventTime, SourceImage, TargetImage, granted_access
 ```
 
-[📸 SCREENSHOT: Execute the LSASS access query above. Capture the results showing the malicious source process accessing LSASS memory.]
+<img width="920" height="273" alt="image" src="https://github.com/user-attachments/assets/3536eafd-4084-4c0e-81c5-f33934e18829" />
 
 **Returned:** Source processes successfully accessing lsass.exe.
 **Read:** I confirmed the attacker performed OS credential dumping on the beachhead to harvest credentials.
@@ -115,7 +114,7 @@ HarborlightDental_CL
 | project EventTime, Image, CommandLine
 | order by EventTime asc
 ```
-> 📸 **SCREENSHOT:** Execute the ntdsutil query above. Capture the output proving the attacker extracted the Active Directory database.
+<img width="1400" height="269" alt="image" src="https://github.com/user-attachments/assets/52d534ee-fd67-42db-b83c-78f149e680cf" />
 
 **Returned:** Execution of ntdsutil to extract the ntds.dit database.
 
@@ -125,15 +124,15 @@ HarborlightDental_CL
 
 **Question:** Was sensitive data staged and exfiltrated out of the network?
 
-```kusto
+```kql
 HarborlightDental_CL
 | where EventID == 1
-| where OriginalFileName has_any ("rclone", "megasync", "curl", "7z", "rar")
+| where Image has "MsMpEng" or CommandLine has "MsMpEng" or OriginalFileName has_any ("rclone", "megasync", "curl", "7z", "rar")
 | project EventTime, host, Image, OriginalFileName, CommandLine
-| order by EventTime
+| order by EventTime 
 ```
 
-> 📸 **SCREENSHOT:** Execute the exfiltration query above. Capture the rows showing rclone and 7z execution.
+<img width="1400" height="269" alt="image" src="https://github.com/user-attachments/assets/ec76e47b-ff2c-4d7d-a60a-35d683487fdb" />
 
 **Returned:** Execution of 7z targeting PatientData and rclone configurations.
 
@@ -143,24 +142,24 @@ HarborlightDental_CL
 
 **Question:** Did the attacker leave behind active backdoor accounts?
 
-```kusto
+```kql
 HarborlightDental_CL
 | where CommandLine has "svc_sql" or CommandLine has "New-ADUser" or (CommandLine has "net user" and CommandLine has "/add")
 | project EventTime, host, Image, CommandLine
 | order by EventTime asc
 ```
 
-> 📸 **SCREENSHOT:** Execute the svc_sql persistence query above. Capture the evidence showing the rogue account creation for the IR team.
+<img width="1243" height="368" alt="image" src="https://github.com/user-attachments/assets/0751217b-00ee-4509-8e84-17d896ce2b89" />
 
 **Returned:** Commands confirming the addition of the svc_sql account to domain groups.
 
-**Read:** I verified the attacker established persistent Domain Admin access via a newly created service account.
+**Read:** I verified the attacker established persistent Domain Admin access via a newly created service account (svc_sql).
 
 ## 7.6 Defense Evasion and Impact
 
 **Question:** Did the attacker inhibit system recovery and deploy ransomware?
 
-```kusto
+```kql
 HarborlightDental_CL
 | where CommandLine has_any ("vssadmin", "shadowcopy", "wbadmin", "bcdedit", "delete shadows", "recoveryenabled")
 | project EventTime, host, Image, CommandLine
@@ -169,13 +168,13 @@ HarborlightDental_CL
 
 > 📸 **SCREENSHOT:** Execute the vssadmin query above. Capture the shadow copy deletion commands.
 
-```kusto
+```kql
 HarborlightDental_CL
 | where File_Name endswith ".akira" or TargetFilename endswith ".akira" or CommandLine has ".akira"
 | project EventTime, host, Image, CommandLine
 ```
 
-> 📸 **SCREENSHOT:** Execute the .akira query above. Capture the results proving the final encryption payload executed across the hosts.
+<img width="865" height="364" alt="image" src="https://github.com/user-attachments/assets/e4efc721-4a5f-42b9-9bd8-706a6f7f894a" />
 
 **Returned:** Volume shadow copy deletions and commands/files referencing .akira.
 
